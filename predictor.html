@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pre-Release IMDB Predictor</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gold: #f5c518;
+    --gold-dim: #c9a010;
+    --bg: #0a0a0a;
+    --surface: #141414;
+    --surface2: #1e1e1e;
+    --border: #2a2a2a;
+    --text: #efefef;
+    --muted: #666;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; padding: 48px 20px 72px;
+  }
+  .wrapper { width: 100%; max-width: 660px; }
+
+  /* Header */
+  header { text-align: center; margin-bottom: 44px; }
+  .badge-row { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 14px; }
+  .imdb-badge { background: var(--gold); color: #000; font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: 2px; padding: 3px 10px; border-radius: 3px; }
+  .pre-badge { background: transparent; color: var(--gold); border: 1px solid var(--gold-dim); font-family: 'Bebas Neue', sans-serif; font-size: 0.85rem; letter-spacing: 2px; padding: 3px 10px; border-radius: 3px; }
+  h1 { font-family: 'Bebas Neue', sans-serif; font-size: clamp(2.6rem, 9vw, 4.4rem); letter-spacing: 3px; line-height: 0.95; }
+  h1 span { color: var(--gold); }
+  .subtitle { color: var(--muted); font-size: 0.82rem; margin-top: 12px; letter-spacing: 0.5px; font-weight: 300; }
+
+  /* Metrics */
+  .metrics-bar { display: flex; gap: 8px; margin-bottom: 12px; }
+  .metric-chip { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; text-align: center; }
+  .metric-chip .metric-label { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 2px; color: var(--muted); margin-bottom: 4px; }
+  .metric-chip .metric-val { font-family: 'Bebas Neue', sans-serif; font-size: 1.6rem; color: var(--gold); letter-spacing: 1px; line-height: 1; }
+  .metric-chip .metric-desc { font-size: 0.65rem; color: var(--muted); margin-top: 4px; line-height: 1.4; }
+  .metric-chip.highlight { border-color: var(--gold-dim); background: rgba(245,197,24,0.05); }
+  .metric-chip.highlight .metric-label { color: var(--gold-dim); }
+
+  /* Cards */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 28px 32px; margin-bottom: 12px; }
+  .section-title { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 2.5px; color: var(--muted); margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  .section-title .tip { font-size: 0.65rem; color: var(--gold); letter-spacing: 1px; background: rgba(245,197,24,0.08); padding: 2px 8px; border-radius: 20px; }
+
+  /* Range */
+  .field { margin-bottom: 24px; }
+  .field:last-child { margin-bottom: 0; }
+  label { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.73rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 10px; font-weight: 500; }
+  label .val { font-family: 'Bebas Neue', sans-serif; font-size: 1rem; color: var(--gold); letter-spacing: 1px; }
+  input[type="range"] { width: 100%; -webkit-appearance: none; height: 2px; background: var(--border); border-radius: 2px; outline: none; cursor: pointer; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; background: var(--gold); border-radius: 50%; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; }
+  input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.25); box-shadow: 0 0 0 6px rgba(245,197,24,0.12); }
+
+  /* Pills */
+  .pill-grid { display: flex; flex-wrap: wrap; gap: 7px; }
+  .pill { padding: 6px 14px; border: 1px solid var(--border); border-radius: 100px; font-size: 0.78rem; cursor: pointer; transition: all 0.15s; color: var(--muted); background: transparent; font-family: 'DM Sans', sans-serif; }
+  .pill:hover { border-color: var(--gold-dim); color: var(--text); }
+  .pill.active { background: var(--gold); border-color: var(--gold); color: #000; font-weight: 500; }
+  /* Okänd-pill style — subtler gold outline */
+  .pill.unknown { border-color: var(--gold-dim); color: var(--gold); }
+  .pill.unknown.active { background: rgba(245,197,24,0.15); border-color: var(--gold); color: var(--gold); font-weight: 500; }
+
+  /* Director search */
+  .dir-row { display: flex; gap: 8px; align-items: stretch; }
+  .search-wrap { position: relative; flex: 1; }
+  .search-input { width: 100%; padding: 11px 16px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 0.88rem; outline: none; transition: border-color 0.15s; }
+  .search-input:focus { border-color: var(--gold-dim); }
+  .search-input::placeholder { color: var(--muted); }
+  .search-input.imputed { border-color: rgba(245,197,24,0.3); }
+  .dropdown { position: absolute; top: calc(100% + 6px); left: 0; right: 0; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; z-index: 100; max-height: 220px; overflow-y: auto; display: none; }
+  .dropdown.open { display: block; }
+  .dropdown-item { padding: 10px 16px; font-size: 0.84rem; cursor: pointer; transition: background 0.1s; color: var(--text); display: flex; justify-content: space-between; align-items: center; }
+  .dropdown-item:hover { background: var(--border); }
+  .dropdown-item.selected { color: var(--gold); }
+  .dir-meta { font-size: 0.72rem; color: var(--muted); }
+  .dir-stars { color: var(--gold); }
+
+  /* Okänd-knapp */
+  .unknown-btn { padding: 11px 16px; background: transparent; border: 1px solid var(--gold-dim); border-radius: 8px; color: var(--gold); font-family: 'DM Sans', sans-serif; font-size: 0.82rem; cursor: pointer; white-space: nowrap; transition: all 0.15s; letter-spacing: 0.3px; }
+  .unknown-btn:hover { background: rgba(245,197,24,0.08); }
+  .unknown-btn.active { background: rgba(245,197,24,0.15); border-color: var(--gold); font-weight: 500; }
+
+  /* Imputation notice */
+  .impute-notice { margin-top: 10px; font-size: 0.75rem; color: var(--muted); display: flex; align-items: center; gap: 6px; min-height: 18px; }
+  .impute-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--gold-dim); flex-shrink: 0; }
+  .impute-notice.hidden { visibility: hidden; }
+
+  /* Button */
+  .btn { width: 100%; padding: 17px; background: var(--gold); color: #000; border: none; border-radius: 10px; font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem; letter-spacing: 3px; cursor: pointer; transition: background 0.2s, transform 0.1s; margin-top: 4px; }
+  .btn:hover { background: #ffd025; }
+  .btn:active { transform: scale(0.985); }
+
+  /* Result */
+  .result { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 32px; text-align: center; display: none; animation: fadeUp 0.45s cubic-bezier(0.16,1,0.3,1); margin-top: 12px; }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+  .result.show { display: block; }
+  .result-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 2.5px; color: var(--muted); margin-bottom: 6px; }
+  .result-score { font-family: 'Bebas Neue', sans-serif; font-size: 6rem; color: var(--gold); line-height: 1; letter-spacing: 2px; }
+  .result-score sup { font-size: 2rem; color: var(--muted); vertical-align: super; }
+  .stars-row { font-size: 1.3rem; margin: 10px 0 4px; letter-spacing: 4px; color: var(--gold); }
+  .result-bar-wrap { margin-top: 14px; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .result-bar { height: 100%; background: linear-gradient(90deg, var(--gold-dim), var(--gold)); border-radius: 2px; transition: width 0.9s cubic-bezier(0.16,1,0.3,1); width: 0%; }
+  .result-desc { margin-top: 12px; font-size: 0.84rem; color: var(--muted); font-style: italic; }
+
+  /* RMSE block */
+  .rmse-block { margin-top: 20px; border: 1px solid var(--gold-dim); background: rgba(245,197,24,0.04); border-radius: 10px; padding: 18px 20px; text-align: left; }
+  .rmse-block .rmse-title { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 2px; color: var(--gold-dim); margin-bottom: 12px; }
+  .rmse-range-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .rmse-lo, .rmse-hi { font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; color: var(--text); letter-spacing: 1px; }
+  .rmse-arrow { color: var(--muted); font-size: 0.9rem; flex: 1; text-align: center; }
+  .rmse-note { font-size: 0.76rem; color: var(--muted); line-height: 1.6; }
+  .rmse-note strong { color: #aaa; }
+  .range-visual { position: relative; height: 6px; background: var(--border); border-radius: 3px; margin: 10px 0; }
+  .range-fill { position: absolute; height: 100%; background: linear-gradient(90deg, var(--gold-dim), var(--gold)); border-radius: 3px; transition: all 0.8s cubic-bezier(0.16,1,0.3,1); }
+  .range-center { position: absolute; width: 3px; height: 14px; background: var(--gold); border-radius: 2px; top: -4px; transform: translateX(-50%); transition: left 0.8s cubic-bezier(0.16,1,0.3,1); }
+
+  /* Imputation summary in result */
+  .impute-summary { margin-top: 14px; padding: 10px 14px; background: rgba(245,197,24,0.05); border: 1px solid rgba(245,197,24,0.1); border-radius: 8px; font-size: 0.74rem; color: var(--muted); text-align: left; line-height: 1.7; }
+  .impute-summary.hidden { display: none; }
+  .impute-summary strong { color: var(--gold-dim); }
+
+  .info { margin-top: 10px; padding: 14px 18px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; font-size: 0.74rem; color: var(--muted); line-height: 1.9; }
+  .info strong { color: #999; }
+
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: var(--surface2); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <header>
+    <div class="badge-row">
+      <div class="imdb-badge">IMDB</div>
+      <div class="pre-badge">PRE-RELEASE</div>
+    </div>
+    <h1>RATING<br><span>PREDICTOR</span></h1>
+    <p class="subtitle">Förutsäg betyg <em>innan</em> en film släpps &nbsp;·&nbsp; Linjär regression &nbsp;·&nbsp; Tomma fält hanteras automatiskt</p>
+  </header>
+
+  <!-- Metrics -->
+  <div class="metrics-bar">
+    <div class="metric-chip">
+      <div class="metric-label">R²</div>
+      <div class="metric-val">0.54</div>
+      <div class="metric-desc">Förklarar 54% av variationen</div>
+    </div>
+    <div class="metric-chip highlight">
+      <div class="metric-label">RMSE ★</div>
+      <div class="metric-val">0.17</div>
+      <div class="metric-desc">Straffar stora fel hårdare</div>
+    </div>
+    <div class="metric-chip">
+      <div class="metric-label">MAE</div>
+      <div class="metric-val">0.11</div>
+      <div class="metric-desc">Genomsnittligt absolut fel</div>
+    </div>
+  </div>
+
+  <!-- Filmdetaljer -->
+  <div class="card">
+    <div class="section-title">Filmdetaljer <span class="tip">Kända innan release</span></div>
+    <div class="field">
+      <label>Speltid <span class="val" id="val-runtime">120 min</span></label>
+      <input type="range" id="runtime" min="45" max="240" value="120"
+        oninput="document.getElementById('val-runtime').textContent=this.value+' min'">
+    </div>
+    <div class="field">
+      <label>Utgivningsår <span class="val" id="val-year">2024</span></label>
+      <input type="range" id="year" min="1920" max="2030" value="2024"
+        oninput="document.getElementById('val-year').textContent=this.value">
+    </div>
+  </div>
+
+  <!-- Genre -->
+  <div class="card">
+    <div class="section-title">Genre <span class="tip">Välj en — eller lämna okänd</span></div>
+    <div class="pill-grid">
+      <button class="pill unknown active" data-group="genre" data-val="__unknown__" onclick="selectPill(this)">Okänd genre</button>
+      <button class="pill" data-group="genre" data-val="Drama" onclick="selectPill(this)">Drama</button>
+      <button class="pill" data-group="genre" data-val="Action" onclick="selectPill(this)">Action</button>
+      <button class="pill" data-group="genre" data-val="Comedy" onclick="selectPill(this)">Comedy</button>
+      <button class="pill" data-group="genre" data-val="Crime" onclick="selectPill(this)">Crime</button>
+      <button class="pill" data-group="genre" data-val="Biography" onclick="selectPill(this)">Biography</button>
+      <button class="pill" data-group="genre" data-val="Animation" onclick="selectPill(this)">Animation</button>
+      <button class="pill" data-group="genre" data-val="Adventure" onclick="selectPill(this)">Adventure</button>
+      <button class="pill" data-group="genre" data-val="Other" onclick="selectPill(this)">Annat</button>
+    </div>
+    <div class="impute-notice" id="genre-notice">
+      <div class="impute-dot"></div>
+      <span>Genomsnitt av alla genrer används (imputation)</span>
+    </div>
+  </div>
+
+  <!-- Certificate -->
+  <div class="card">
+    <div class="section-title">Åldersgräns <span class="tip">Certificate — eller lämna okänd</span></div>
+    <div class="pill-grid">
+      <button class="pill unknown active" data-group="cert" data-val="__unknown__" onclick="selectPill(this)">Okänd</button>
+      <button class="pill" data-group="cert" data-val="U" onclick="selectPill(this)">U – Alla åldrar</button>
+      <button class="pill" data-group="cert" data-val="PG" onclick="selectPill(this)">PG – Vägledning</button>
+      <button class="pill" data-group="cert" data-val="UA" onclick="selectPill(this)">UA – 12+</button>
+      <button class="pill" data-group="cert" data-val="A" onclick="selectPill(this)">A – Vuxen</button>
+      <button class="pill" data-group="cert" data-val="Passed" onclick="selectPill(this)">Passed / Klassiker</button>
+    </div>
+    <div class="impute-notice" id="cert-notice">
+      <div class="impute-dot"></div>
+      <span>Genomsnitt av alla åldersgränser används (imputation)</span>
+    </div>
+  </div>
+
+  <!-- Director -->
+  <div class="card">
+    <div class="section-title">Regissör <span class="tip">Historik från datasetet</span></div>
+    <div class="dir-row">
+      <div class="search-wrap">
+        <input class="search-input" id="dir-input" type="text"
+          placeholder="Sök regissör…"
+          oninput="filterDirs(); setDirUnknown(false)"
+          onfocus="openDirDropdown()" autocomplete="off">
+        <div class="dropdown" id="dir-dropdown"></div>
+      </div>
+      <button class="unknown-btn active" id="unknown-btn" onclick="setDirUnknown(true)">Okänd</button>
+    </div>
+    <div class="impute-notice" id="dir-notice">
+      <div class="impute-dot"></div>
+      <span id="dir-notice-text">Datasettets snittvärde används: 7.95 (imputation)</span>
+    </div>
+  </div>
+
+  <button class="btn" onclick="predict()">🎬 FÖRUTSÄG BETYG</button>
+
+  <!-- Result -->
+  <div class="result" id="result">
+    <div class="result-label">Förutspått IMDB-betyg (pre-release)</div>
+    <div class="result-score" id="score-text">—</div>
+    <div class="stars-row" id="stars"></div>
+    <div class="result-bar-wrap"><div class="result-bar" id="result-bar"></div></div>
+    <div class="result-desc" id="result-desc"></div>
+
+    <!-- Imputation summary -->
+    <div class="impute-summary hidden" id="impute-summary"></div>
+
+    <!-- RMSE block -->
+    <div class="rmse-block">
+      <div class="rmse-title">⚠ RMSE-baserat felintervall (±0.17)</div>
+      <div class="rmse-range-row">
+        <div class="rmse-lo" id="rmse-lo">—</div>
+        <div class="rmse-arrow">── förväntat intervall ──</div>
+        <div class="rmse-hi" id="rmse-hi">—</div>
+      </div>
+      <div class="range-visual">
+        <div class="range-fill" id="range-fill"></div>
+        <div class="range-center" id="range-center"></div>
+      </div>
+      <div class="rmse-note">
+        <strong>Varför RMSE?</strong> Stora fel straffas hårdare — relevant för pre-release beslut där extrema missar är extra kostsamma.
+      </div>
+    </div>
+  </div>
+
+  <div class="info">
+    <strong>Algoritm:</strong> Linjär regression &nbsp;·&nbsp;
+    <strong>Dataset:</strong> IMDB Top 1000 (Kaggle) &nbsp;·&nbsp;
+    <strong>R²:</strong> 0.54 &nbsp;·&nbsp;
+    <strong>RMSE:</strong> 0.17 &nbsp;·&nbsp;
+    <strong>MAE:</strong> 0.11<br>
+    <strong>Saknade värden:</strong> Hanteras med imputation (medelvärde från datasetet)
+  </div>
+
+</div>
+
+<script>
+const INTERCEPT = 0.636767;
+const COEF = {
+  runtime: 0.00059464, year: -0.00038549,
+  dir_avg: 1.00853185, dir_count: -0.0023229,
+  genre_Action: -0.02206063, genre_Adventure: -0.01773464, genre_Animation: 0.00605442,
+  genre_Biography: 0.00763146, genre_Comedy: -0.02204533, genre_Crime: 0.02577255,
+  genre_Drama: -0.01401648, genre_Other: 0.03639865,
+  cert_A: 0.03220293, cert_PG: -0.01772131, cert_Passed: -0.00328558,
+  cert_U: -0.00036538, cert_UA: -0.01083067,
+};
+const RMSE = 0.1727;
+
+// Imputation values (means from dataset)
+const IMPUTE = {
+  dir_avg:   7.9493,
+  dir_count: 3.348,
+  // Genre imputation: weighted average of all genre coefficients (approx 0)
+  genre: 0,
+  // Cert imputation: weighted average of all cert coefficients (approx 0)
+  cert: 0,
+};
+
+const DIRECTORS = [{"name":"Frank Darabont","avg":8.95,"count":2},{"name":"Milos Forman","avg":8.5,"count":2},{"name":"Christopher Nolan","avg":8.463,"count":8},{"name":"Francis Ford Coppola","avg":8.4,"count":5},{"name":"Peter Jackson","avg":8.4,"count":5},{"name":"Charles Chaplin","avg":8.333,"count":6},{"name":"Fritz Lang","avg":8.3,"count":2},{"name":"Nitesh Tiwari","avg":8.3,"count":2},{"name":"Lee Unkrich","avg":8.3,"count":2},{"name":"Sergio Leone","avg":8.267,"count":6},{"name":"Damien Chazelle","avg":8.25,"count":2},{"name":"Andrew Stanton","avg":8.25,"count":2},{"name":"Stanley Kubrick","avg":8.233,"count":9},{"name":"Akira Kurosawa","avg":8.22,"count":10},{"name":"Michael Curtiz","avg":8.2,"count":2},{"name":"Frank Capra","avg":8.2,"count":4},{"name":"Rajkumar Hirani","avg":8.175,"count":4},{"name":"Quentin Tarantino","avg":8.175,"count":8},{"name":"Martin Scorsese","avg":8.17,"count":10},{"name":"Bong Joon Ho","avg":8.167,"count":3},{"name":"Orson Welles","avg":8.15,"count":2},{"name":"Billy Wilder","avg":8.144,"count":9},{"name":"Ingmar Bergman","avg":8.143,"count":7},{"name":"Bryan Singer","avg":8.133,"count":3},{"name":"Pete Docter","avg":8.125,"count":4},{"name":"Robert Zemeckis","avg":8.12,"count":5},{"name":"Andrei Tarkovsky","avg":8.12,"count":5},{"name":"Sidney Lumet","avg":8.1,"count":5},{"name":"Steven Spielberg","avg":8.031,"count":13},{"name":"Hayao Miyazaki","avg":8.018,"count":11},{"name":"Alfred Hitchcock","avg":8.007,"count":14},{"name":"Denis Villeneuve","avg":7.98,"count":5},{"name":"David Fincher","avg":8.037,"count":8},{"name":"Ridley Scott","avg":8.083,"count":6},{"name":"James Cameron","avg":8.08,"count":5},{"name":"Anthony Russo","avg":8.075,"count":4},{"name":"Darren Aronofsky","avg":8.067,"count":3},{"name":"Wes Anderson","avg":7.833,"count":6},{"name":"Joel Coen","avg":7.817,"count":6},{"name":"Alfonso Cuarón","avg":7.75,"count":6},{"name":"Richard Linklater","avg":7.9,"count":6},{"name":"Rob Reiner","avg":7.829,"count":7},{"name":"Howard Hawks","avg":7.857,"count":7},{"name":"Clint Eastwood","avg":7.912,"count":8},{"name":"Woody Allen","avg":7.789,"count":9},{"name":"Roman Polanski","avg":8.0,"count":5},{"name":"Sam Mendes","avg":8.0,"count":4},{"name":"Paul Thomas Anderson","avg":8.033,"count":3},{"name":"Tim Burton","avg":7.9,"count":3},{"name":"Danny Boyle","avg":7.9,"count":3},{"name":"David Lynch","avg":7.86,"count":5},{"name":"John Ford","avg":7.9,"count":5},{"name":"Brad Bird","avg":7.9,"count":4},{"name":"Terry Gilliam","avg":7.925,"count":4},{"name":"James Mangold","avg":7.925,"count":4},{"name":"Ron Howard","avg":7.92,"count":5},{"name":"Asghar Farhadi","avg":7.975,"count":4},{"name":"Chan-wook Park","avg":7.975,"count":4},{"name":"Federico Fellini","avg":8.0,"count":5},{"name":"John Huston","avg":7.9,"count":5},{"name":"Zack Snyder","avg":7.6,"count":2},{"name":"Chris Columbus","avg":7.6,"count":2}];
+
+// State
+let selectedGenre = '__unknown__';
+let selectedCert  = '__unknown__';
+let selectedDirAvg   = null; // null = okänd
+let selectedDirCount = null;
+let dirIsUnknown = true;
+
+// ── Pills ──
+function selectPill(el) {
+  const group = el.dataset.group;
+  document.querySelectorAll(`.pill[data-group="${group}"]`).forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  if (group === 'genre') {
+    selectedGenre = el.dataset.val;
+    const notice = document.getElementById('genre-notice');
+    notice.classList.toggle('hidden', selectedGenre !== '__unknown__');
+  }
+  if (group === 'cert') {
+    selectedCert = el.dataset.val;
+    const notice = document.getElementById('cert-notice');
+    notice.classList.toggle('hidden', selectedCert !== '__unknown__');
+  }
+}
+
+// ── Director ──
+function renderDirList(list) {
+  const dd = document.getElementById('dir-dropdown');
+  if (!list.length) {
+    dd.innerHTML = `<div class="dropdown-item" style="color:var(--muted)">Ingen träff</div>`;
+    return;
+  }
+  dd.innerHTML = list.map(d => `
+    <div class="dropdown-item" onclick="selectDir('${d.name.replace(/'/g,"\\'")}',${d.avg},${d.count})">
+      <span>${d.name}</span>
+      <span class="dir-meta"><span class="dir-stars">${'★'.repeat(Math.min(5,Math.round((d.avg-7.6)/(9.3-7.6)*3+1)))}</span> ${d.avg} · ${d.count} filmer</span>
+    </div>`).join('');
+}
+
+function filterDirs() {
+  const q = document.getElementById('dir-input').value.toLowerCase();
+  document.getElementById('dir-dropdown').classList.add('open');
+  renderDirList(DIRECTORS.filter(d => d.name.toLowerCase().includes(q)));
+}
+
+function openDirDropdown() {
+  if (dirIsUnknown) return;
+  document.getElementById('dir-dropdown').classList.add('open');
+  renderDirList(DIRECTORS.slice(0, 20));
+}
+
+function selectDir(name, avg, count) {
+  selectedDirAvg   = avg;
+  selectedDirCount = count;
+  dirIsUnknown = false;
+  document.getElementById('dir-input').value = name;
+  document.getElementById('dir-input').classList.remove('imputed');
+  document.getElementById('unknown-btn').classList.remove('active');
+  document.getElementById('dir-notice').classList.add('hidden');
+  document.getElementById('dir-dropdown').classList.remove('open');
+}
+
+function setDirUnknown(isUnknown) {
+  dirIsUnknown = isUnknown;
+  if (isUnknown) {
+    selectedDirAvg   = null;
+    selectedDirCount = null;
+    document.getElementById('dir-input').value = '';
+    document.getElementById('dir-input').placeholder = 'Okänd regissör — snittvärde används';
+    document.getElementById('dir-input').classList.add('imputed');
+    document.getElementById('unknown-btn').classList.add('active');
+    document.getElementById('dir-notice').classList.remove('hidden');
+    document.getElementById('dir-dropdown').classList.remove('open');
+  } else {
+    document.getElementById('dir-input').placeholder = 'Sök regissör…';
+    document.getElementById('dir-input').classList.remove('imputed');
+    document.getElementById('unknown-btn').classList.remove('active');
+  }
+}
+
+// Init: start with unknown director
+setDirUnknown(true);
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.search-wrap')) document.getElementById('dir-dropdown').classList.remove('open');
+});
+
+// ── Predict ──
+function predict() {
+  const runtime = parseFloat(document.getElementById('runtime').value);
+  const year    = parseFloat(document.getElementById('year').value);
+
+  // Director: impute if unknown
+  const dirAvg   = selectedDirAvg   !== null ? selectedDirAvg   : IMPUTE.dir_avg;
+  const dirCount = selectedDirCount !== null ? selectedDirCount : IMPUTE.dir_count;
+
+  let rating = INTERCEPT
+    + COEF.runtime   * runtime
+    + COEF.year      * year
+    + COEF.dir_avg   * dirAvg
+    + COEF.dir_count * dirCount;
+
+  // Genre: impute (add 0) if unknown
+  if (selectedGenre !== '__unknown__') {
+    const gKey = 'genre_' + selectedGenre;
+    if (COEF[gKey] !== undefined) rating += COEF[gKey];
+  }
+
+  // Cert: impute (add 0) if unknown
+  if (selectedCert !== '__unknown__') {
+    const cKey = 'cert_' + selectedCert;
+    if (COEF[cKey] !== undefined) rating += COEF[cKey];
+  }
+
+  rating = Math.max(7.6, Math.min(9.3, rating));
+  const rounded = rating.toFixed(1);
+
+  // Show result
+  const result = document.getElementById('result');
+  result.classList.add('show');
+  document.getElementById('score-text').innerHTML = rounded + '<sup>/10</sup>';
+
+  const sf = Math.round(((rating - 7.6) / (9.3 - 7.6)) * 4) + 1;
+  document.getElementById('stars').textContent = '★'.repeat(Math.min(sf,5)) + '☆'.repeat(Math.max(0,5-sf));
+
+  const pct = ((rating - 7.6) / (9.3 - 7.6)) * 100;
+  setTimeout(() => { document.getElementById('result-bar').style.width = pct + '%'; }, 60);
+
+  let desc = '';
+  if (rating >= 9.0)      desc = 'Enastående — i nivå med de absoluta klassikerna';
+  else if (rating >= 8.5) desc = 'Utmärkt — stor chans att bli en favorit';
+  else if (rating >= 8.2) desc = 'Mycket bra — stark pre-release prognos';
+  else                    desc = 'Bra — solid prognos enligt modellen';
+  document.getElementById('result-desc').textContent = desc;
+
+  // Imputation summary
+  const imputedFields = [];
+  if (dirIsUnknown)                  imputedFields.push(`Regissör → snittvärde 7.95`);
+  if (selectedGenre === '__unknown__') imputedFields.push(`Genre → medelvärde (neutral påverkan)`);
+  if (selectedCert  === '__unknown__') imputedFields.push(`Åldersgräns → medelvärde (neutral påverkan)`);
+
+  const summary = document.getElementById('impute-summary');
+  if (imputedFields.length) {
+    summary.classList.remove('hidden');
+    summary.innerHTML = `<strong>ℹ Imputation användes för:</strong><br>` + imputedFields.join('<br>');
+  } else {
+    summary.classList.add('hidden');
+  }
+
+  // RMSE interval
+  const lo = Math.max(7.6, rating - RMSE).toFixed(2);
+  const hi = Math.min(9.3, rating + RMSE).toFixed(2);
+  document.getElementById('rmse-lo').textContent = lo;
+  document.getElementById('rmse-hi').textContent = hi;
+
+  const totalRange = 9.3 - 7.6;
+  const loPos  = ((parseFloat(lo) - 7.6) / totalRange) * 100;
+  const hiPos  = ((parseFloat(hi) - 7.6) / totalRange) * 100;
+  const midPos = ((rating - 7.6) / totalRange) * 100;
+  setTimeout(() => {
+    document.getElementById('range-fill').style.left  = loPos + '%';
+    document.getElementById('range-fill').style.width = (hiPos - loPos) + '%';
+    document.getElementById('range-center').style.left = midPos + '%';
+  }, 60);
+}
+</script>
+</body>
+</html>
